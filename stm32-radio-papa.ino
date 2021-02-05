@@ -1,0 +1,530 @@
+
+//--- BOARD ---
+//BOARD type   : Generic STM32-F1 series
+//BOARD number : BluePill F103C8
+//U(S)ART Support : Enabled (generic Serial)
+//upload method :
+//    FFTDI       : STM32CubePRogrammer (serial)
+//    ST-LINK/V2 :  STM32CubePRogrammer (SWD)
+//USB port  
+//    FFTDI       :/dev/ttyUSB0 (NOT /dev/ttyS0)
+//    ST-LINK/V2  :/dev/ttyS0
+
+//   To gess the port, choose what changes when you plug the USB to Serial adapter
+//https://www.electronicshub.org/getting-started-with-stm32f103c8t6-blue-pill/
+
+// the setup function runs once when you press reset or power the board
+
+//--- setup ---
+//https://raw.githubusercontent.com/stm32duino/BoardManagerFiles/master/STM32/package_stm_index.json
+//install stm32 package
+
+//Install : STM32_Programmer.sh
+//download it here : https://www.st.com/en/development-tools/stm32cubeprog.html
+//you need a temporary email to register, and the mail containing the download mail may take several minutes to arrive
+//install with the default setup parameters.
+
+//FIX STM32_Programmer.sh not found
+//in arduino : File/Preference/ show compilation and upload details
+//look at the line just before "STM32_Programmer.sh not found", you should have something that look mike 
+//  /home/me/.arduino15/packages/STM32/tools/STM32Tools/1.4.0/tools/linux/stm32CubeProg.sh 0 /tmp/arduino_build_420426/stm32-test.ino.bin -g
+//  <---------------------------------- EDIT ME ----------------------------------------->
+// EDIT the file 
+// find a function called check_tool()
+// after the line export PATH="$HOME/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin":$PATH
+// add this line : export PATH="/usr/local/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/":$PATH
+// where /usr/local/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/ is the place where STM32CubeProgrammer is installed
+// if you don't know where this place is, run updatedb; locate STM32_Programmer.sh
+
+
+
+
+
+
+
+
+
+
+//=== Hardware doc ===
+//--- radio ---
+/*
+               7
+ (LED)         6
+               5
+     VER 2.0             
+ 1   RDD 102   4
+ 2             3
+
+1: Audio out L => To ampli in L
+2: Audio out R => To ampli in R
+
+3: Antenna
+4: GND  => To STM32 Radio_GND
+
+5: SDA  => To STM32 Radio_SDA
+6: SCL  => To STM32 Radio_SCL
+7: 3.3V => To STM32 Radio_3.3
+*/
+
+//--- Power Switch ---
+/*
+0 +5V_out => To power +5V_B 
+1 +5V_in  => To Power +5V_A
+2 LED -   => To 330R and Power_GND
+*/
+
+//--- Power  ---
+/*
+ USB
+
+123456
+
+1: GND => To power switch LED- 
+2: GND => To STM32 GND
+3: GND => To Ampli GND
+4: +5V_B => To Ampli +5V AND To STM32 +5V (two wires in the terminal)
+5: +5V_B => To power Switch +5V_out
+6: +5V_A => To power Switch +5V_in
+*/
+
+//--- AMPLI ---
+/*
+1:IN1+             OUT1+:10
+2:GND              GND  :9
+           L
+     LED   M
+           |
+3:GND              GND  :8
+4:IN2+    56       OUT2+:7
+
+1: Ampli L <= from Radio Audio out L
+2: GND     
+3: GND
+4: Ampli R <- from Radio Audio R
+
+5: GND <= from Power GND
+6: +5V <= drom Power +5V
+
+7: Audio out R => (to R speaker+, not connected)
+8: GND         => (to R speaker-, not connected)
+9: GND         => to L speaker-
+10:Audio out L => to L speaker+
+*/
+
+//--- STM32 ---
+/*
+   2pin ---8pin---
+   AB   CDEFGHIJ
+
+1                   20
+2      |     |      19
+3      |     |      18
+4      |     |      17
+5      |  S  |
+       |  T  |      16
+6      |  M  |      15
+7      |  3  |      14
+8      |  2  |      13
+9      |     |
+10     |     |      12
+       | USB |      11
+
+  -----13pins-----
+
+
+1:ROT1_A   => To Rotary encoder1 A
+2:ROT1_B   => To Rotary encoder1 B
+3:ROT1_C   => To Rotary encoder1 C
+4:ROT1_SWS => To Rotary encoder1 switch S
+5:ROT1_SWT => To Rotary encoder1 switch T
+
+6:ROT2_A   => To Rotary encoder2 A
+7:ROT2_B   => To Rotary encoder2 B
+8:ROT2_C   => To Rotary encoder2 C
+9:ROT2_SWS => To Rotary encoder2 switch S
+10:ROT2_SWT=> To Rotary encoder2 switch T
+
+11: +5V => To Power +5V_B
+12: GND => To Power GND
+
+13 : Radio_GND      => To Radio GND
+14 : Radio_3.3      => To Radio 3.3
+15 : Radio_SDA (B7) => To Radio SDA 
+16 : Radio_SCL (B6) => To Radio SCL 
+
+17 : LCD_SDA (B6) => To LCD SDA
+18 : LCD_5V       => To LCD +5V
+19 : LCD_GND      => To LCD GND
+20 : LCD_SCL (B7) => To LCD SCL
+
+2pins => To Switches and LED
+A: Switches_out
+B: Switches_out
+
+8pins => To Switches and LED
+C : GND
+D : LED_DATA_CLOCK
+E : LED_UPDATE_CLOCK
+F : LED_DATA
+G : SW_DATA_CLOCK
+H : SW_UPDATE_CLOCK
+I : SW_DATA
+J : +3.3V
+
+13pins => To Switches and LED
+None of them are connected
+*/
+
+
+//--- Switches and LED (74hc595) ---
+//This module goes BELOW the STM32 module
+/*
+   2pin ---8pin---
+1                  32
+2                  31
+3                  30
+4                  29
+
+5                  28
+6                  27
+7                  26
+8                  25
+
+9                  24
+10                 23
+11                 22
+12                 21
+
+13                 20
+14                 19
+15                 18
+16                 17
+  -----13pins-----
+1,2  : SWITCH 1 => To Switch1
+3,4  : SWITCH 2 => To Switch2
+
+5,6  : SWITCH 3 => To Switch3
+7,8  : SWITCH 4 => To Switch4
+
+9,10 : SWITCH 5 => To Switch5
+11,12: SWITCH 6 => To Switch6
+
+13,14: SWITCH 7 => (not connected)
+15,16: SWITCH 8 => (not connected)
+
+17 : LED2- => (not connected)
+18 : LED2+ => (not connected)
+19 : LED3- => (not connected)
+20 : LED3+ => (not connected)
+
+21 : LED4- => To LED6-
+22 : LED4+ => To LED6+
+23 : LED5- => To LED5-
+24 : LED5+ => To LED5+
+
+25 : LED6- => To LED4-
+26 : LED6+ => To LED4+
+27 : LED7- => To LED3-
+28 : LED7+ => To LED3+
+
+29 : LED8- => To LED2-
+30 : LED8+ => To LED2+
+31 : LED1- => To LED1-
+32 : LED1+ => To LED1+
+*/
+
+
+/*Buttons numbering (from the back side)
+
+   SW1   SW2   SW3   SW4   SW5   SW6  
+
+
+  PW      ROT1 ROT2    |              |
+                       |  LCD         |
+                       |              |                    
+*/
+
+
+//--- Rotary encoder pins (from back side)
+/*         
+         A
+SWS      C
+SWT      B
+*/
+
+
+
+
+//=== CODE ===
+#include "BluePill.hpp"
+
+
+//input
+#include "Switches.hpp"
+#include "Rotary.hpp"
+
+//output
+#include "Leds.hpp"
+#include "Display_lcd.hpp"
+#include "Radio_pierre.hpp"
+
+
+//--- WIRES ---
+// I2C
+// B7 -> I2C_SDA 
+// B6 -> I2C_SCL
+
+//Switches (74hc595)
+#define SW_DATA          BluePill_A6  
+#define SW_DATA_CLOCK    BluePill_A8 
+#define SW_UPDATE_CLOCK  BluePill_A7 
+#define SW_READ          BluePill_B4 //was A12
+
+//LED (74hc595)
+#define LED_DATA         BluePill_A9  
+#define LED_DATA_CLOCK   BluePill_B3  //was A11
+#define LED_UPDATE_CLOCK BluePill_A10
+
+//ROTARY ENCODER 1
+#define ROT1_A  BluePill_A1 
+#define ROT1_B  BluePill_A2 
+#define RPT1_SW BluePill_A0 
+
+//ROTARY ENCODER 2
+#define ROT2_A  BluePill_A3  
+#define ROT2_B  BluePill_A4  
+#define RPT2_SW BluePill_A5  
+
+//BITMASKS
+constexpr size_t NB_BUTTONS=6;
+constexpr byte MASK_BUTTONS[NB_BUTTONS]{1,  2, 4,16, 8,32};
+constexpr byte MASK_LEDS[NB_BUTTONS]   {1,128,64,32,16,8 };
+
+
+
+
+//--- GLOBAL DATA ---
+//input
+Switches switches(SW_DATA , SW_DATA_CLOCK,  SW_UPDATE_CLOCK  ,SW_READ);
+Rotary  rotary1  (ROT1_A,ROT1_B);
+Rotary  rotary2  (ROT2_A,ROT2_B);
+
+
+//output
+Leds     leds    (LED_DATA, LED_DATA_CLOCK, LED_UPDATE_CLOCK);
+Display_lcd lcd;
+Radio_pierre radio;
+
+
+RADIO_FREQ STATIONS[6]={
+   8790,  //France inter
+   9150,  //France musique
+   9570,  //France Culture
+  10180,  //Sud radio
+  10350,  //FIP
+  10390   //RTL
+};
+
+
+
+#include <map>
+const std::map<RADIO_FREQ,String> RADIO_NAMES=[](){
+  std::map<RADIO_FREQ,String> r;
+  //          1234567890
+  r[8790]  = "Fr. Inter";
+  r[9150]  = "Fr. Musiq";
+  r[9570]  = "Fr. Cultu";
+  r[10180] = "Sud radio";
+  r[10350] = "FIP";
+  r[10390] = "RTL";
+
+  //--extra--
+  r[9180]  = "FB Occita";
+  r[9260]  = "Toul. FM";
+  r[9350]  = "Altitude";
+  r[9440]  = "Rire Chans";
+  r[9830]  = "R. Occit";
+  r[9950]  = "Nostalgie";
+  r[10310] = "Classique";
+  r[10630] = "Europe 1";
+
+
+
+  
+  return r;
+}();
+
+
+
+//--- link radio to lcd ---
+
+void RDS_process(uint16_t block1, uint16_t block2, uint16_t block3, uint16_t block4) {
+  radio.rds.processData(block1, block2, block3, block4);
+
+   Serial.print("rds_packet:") ;
+   Serial.print(block1); Serial.print(block2); Serial.print(block3); Serial.println(block4);
+
+}
+
+void RDT_to_lcd(char *name){
+  lcd.set_name(name);
+  Serial.print("rds_name:");
+  Serial.println(name);
+  
+  /*bool ok = true;
+  size_t i=0;
+  for( ;i<8;++i){
+    char c = name[i];
+    if(c=='\0'){break;}
+    if(c=='-'){ok=false; break;}
+  }
+  if(ok and i >1){radio.rds_count=radio.rds_max;}*/
+  
+}
+
+
+void radio_to_lcd(){
+  //name is set by RDT_to_lcd
+  lcd.set_frequency(radio.get_frequency_str());
+  lcd.set_volume   (radio.get_volume_str());
+  lcd.set_quality  (radio.get_quality() );
+}
+
+
+
+struct Button{
+  typedef decltype(millis()) millis_t;
+  typedef decltype(std::declval<millis_t>() - std::declval<millis_t>() ) millis_diff;
+
+  millis_t last_change = 0;
+  bool last_value=false;
+
+  std::function<void(millis_diff)> on_press   = [](millis_diff){};
+  std::function<void(millis_diff)> on_release = [](millis_diff){};
+
+  void update(bool b,millis_t n=millis() ){
+    if(b==last_value){return;}
+    last_value=b;
+    millis_diff delta = n-last_change;
+    if(b){on_press(delta);}
+    else {on_release(delta);}
+    last_change = n;
+  }
+
+  void init(bool b, millis_t n=millis() ){
+    last_value=b;
+    last_change=n;
+  }
+};
+
+Button buttons[6];
+
+
+template<size_t I>
+void button_release(unsigned long delta){
+  static_assert(I<NB_BUTTONS,"Wrong button index");
+  if(delta < 100){return;}
+  Serial.print("release_"); Serial.println(I);  
+  radio.set_frequency(STATIONS[I]);
+  
+  delay(100);
+  radio_to_lcd();
+}
+
+
+
+
+/// Setup a FM only radio configuration
+/// with some debugging on the Serial port
+void setup() {
+  //I2C
+  Wire.begin();
+  lcd.init();  
+  
+  //Serial
+  Serial.begin(9600);
+  Serial.println("Radio setup");
+  delay(200);
+
+  //input
+  switches.init();
+      Named_byte buttons_read = switches.read_all();
+      for(size_t i=0; i < NB_BUTTONS;++i){ 
+        buttons[i].init(buttons_read&MASK_BUTTONS[i]); 
+      }
+
+      buttons[0].on_release = button_release<0>;
+      buttons[1].on_release = button_release<1>;
+      buttons[2].on_release = button_release<2>;
+      buttons[3].on_release = button_release<3>;
+      buttons[4].on_release = button_release<4>;
+      buttons[5].on_release = button_release<5>;
+
+   rotary1.init(true); //true=use interrupts
+      rotary1.on_increase=[](int delta){radio.inc_volume(delta);   radio_to_lcd(); Serial.print("v+ "); Serial.println(radio.get_volume_str());};
+      rotary1.on_decrease=[](int delta){radio.inc_volume(delta);   radio_to_lcd(); Serial.print("v- "); Serial.println(radio.get_volume_str());};
+   rotary2.init(true); //true=use interrupts
+      rotary2.on_increase=[](int delta){radio.inc_frequency( delta*delta);   radio_to_lcd(); Serial.print("f+ "); Serial.println(radio.get_frequency_str());};
+      rotary2.on_decrease=[](int delta){radio.inc_frequency(-delta*delta);   radio_to_lcd(); Serial.print("f- "); Serial.println(radio.get_frequency_str());};
+
+  //output
+  leds.init(); leds.data=0; leds.update();
+  radio.init( STATIONS[0], 1);
+  lcd.init();
+  pinMode(LED_BUILTIN, OUTPUT);
+  
+  //rds
+  radio.radio.attachReceiveRDS(RDS_process);
+  radio.rds.attachServicenNameCallback(RDT_to_lcd);
+  
+  //display on lcd
+  radio_to_lcd();
+  lcd.update(); //once : force update
+
+} // setup
+
+
+/// show the current chip data every 3 seconds.
+long unsigned rotary2_last_update=0;
+void loop() {
+
+  //read buttons
+  Named_byte buttons_read = switches.read_all();
+
+  //update buttons and leds
+  leds.data=0;
+  auto now_ms = millis();
+
+  auto freq = radio.get_frequency();
+  //auto freq=0;
+  for(size_t i = 0; i < NB_BUTTONS; ++i){
+      buttons[i].update(buttons_read&MASK_BUTTONS[i],now_ms);        //update buttons
+      if(buttons_read&MASK_BUTTONS[i]){leds.data |= MASK_LEDS[i]; }  //led feedback
+      if(freq==STATIONS[i]){leds.data |= MASK_LEDS[i]; } //led on when frequency matches station
+  }
+  leds.update();
+
+  
+  //Rotary1
+  if(now_ms-rotary2_last_update > 100){
+    rotary2.run_callbacks();
+    rotary2_last_update=now_ms;
+  }
+  
+  rotary1.run_callbacks();
+
+
+  
+  //update radio name:
+  auto f = RADIO_NAMES.find(freq);
+  if(f != RADIO_NAMES.end()){
+    lcd.set_name(f->second);
+  }else{
+    lcd.set_name("");
+  }
+  
+
+
+} // loop
+
+// End.
